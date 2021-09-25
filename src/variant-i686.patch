@@ -47,3 +47,51 @@
          --enable-static \
          --disable-shared \
          --with-pic \
+@@ -245,7 +247,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
+  && rm -rf $PREFIX/$ARCH/bin/ $PREFIX/bin/$ARCH-* \
+         $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe $PREFIX/bin/lto-dump.exe \
+  && $ARCH-gcc -DEXE=g++.exe -DCMD=c++ -Os -ffreestanding \
+-        -s -nostdlib -Wl,--file-alignment,16,--section-alignment,16 \
++        -s -nostdlib -Wl,--file-alignment,8,--section-alignment,8 \
+         -o $PREFIX/bin/c++.exe $PREFIX/src/alias.c -lkernel32
+ 
+ WORKDIR /winpthreads
+@@ -262,17 +264,17 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
+ 
+ # Create various tool aliases
+ RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc -Os -ffreestanding \
+-        -s -nostdlib -Wl,--file-alignment,16,--section-alignment,16 \
++        -s -nostdlib -Wl,--file-alignment,8,--section-alignment,8 \
+         -o $PREFIX/bin/cc.exe $PREFIX/src/alias.c -lkernel32 \
+  && $ARCH-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" -Os -ffreestanding \
+-        -s -nostdlib -Wl,--file-alignment,16,--section-alignment,16 \
++        -s -nostdlib -Wl,--file-alignment,8,--section-alignment,8 \
+         -o $PREFIX/bin/c99.exe $PREFIX/src/alias.c -lkernel32 \
+  && printf '%s\n' addr2line ar as c++filt cpp dlltool dllwrap elfedit g++ \
+       gcc gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool ld nm objcopy \
+       objdump ranlib readelf size strings strip windmc windres gfortran \
+     | xargs -I{} -P$(nproc) \
+           $ARCH-gcc -DEXE={}.exe -DCMD=$ARCH-{} -Os -ffreestanding \
+-            -s -nostdlib -Wl,--file-alignment,16,--section-alignment,16 \
++            -s -nostdlib -Wl,--file-alignment,8,--section-alignment,8 \
+             -o $PREFIX/bin/$ARCH-{}.exe $PREFIX/src/alias.c -lkernel32
+ 
+ # Build some extra development tools
+@@ -303,7 +305,7 @@ RUN /make-$MAKE_VERSION/configure \
+  && make -j$(nproc) \
+  && cp make.exe $PREFIX/bin/ \
+  && $ARCH-gcc -DEXE=make.exe -DCMD=make -Os -ffreestanding \
+-        -s -nostdlib -Wl,--file-alignment,16,--section-alignment,16 \
++        -s -nostdlib -Wl,--file-alignment,8,--section-alignment,8 \
+         -o $PREFIX/bin/mingw32-make.exe $PREFIX/src/alias.c -lkernel32
+ 
+ WORKDIR /busybox-w32
+@@ -338,7 +340,7 @@ RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
+       wc wget which whoami whois xargs xz xzcat yes zcat \
+     | xargs -I{} -P$(nproc) \
+           $ARCH-gcc -DEXE=busybox.exe -DCMD={} -Os -ffreestanding \
+-            -s -nostdlib -Wl,--file-alignment,16,--section-alignment,16 \
++            -s -nostdlib -Wl,--file-alignment,8,--section-alignment,8 \
+             -o $PREFIX/bin/{}.exe $PREFIX/src/alias.c -lkernel32
+ 
+ # TODO: Either somehow use $VIM_VERSION or normalize the workdir

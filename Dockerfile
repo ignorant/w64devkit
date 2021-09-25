@@ -49,7 +49,7 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xjf vim-$VIM_VERSION.tar.bz2
 COPY src/w64devkit.c src/w64devkit.ico src/alias.c $PREFIX/src/
 
-ARG ARCH=x86_64-w64-mingw32
+ARG ARCH=i686-w64-mingw32
 
 # Build cross-compiler
 
@@ -87,10 +87,11 @@ RUN /gcc-$GCC_VERSION/configure \
         --prefix=/bootstrap \
         --with-sysroot=/bootstrap \
         --target=$ARCH \
+        --with-arch=pentium4 \
         --enable-static \
         --disable-shared \
         --with-pic \
-        --enable-languages=c,c++ \
+        --enable-languages=c,c++,fortran \
         --enable-libgomp \
         --enable-threads=posix \
         --enable-version-specific-runtime-libs \
@@ -111,8 +112,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
         --with-sysroot=/bootstrap/$ARCH \
         --host=$ARCH \
         --disable-dependency-tracking \
-        --disable-lib32 \
-        --enable-lib64 \
+        --enable-lib32 \
+        --disable-lib64 \
         CFLAGS="-Os" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
@@ -203,8 +204,8 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-crt/configure \
         --with-sysroot=$PREFIX/$ARCH \
         --host=$ARCH \
         --disable-dependency-tracking \
-        --disable-lib32 \
-        --enable-lib64 \
+        --enable-lib32 \
+        --disable-lib64 \
         CFLAGS="-Os" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
@@ -217,6 +218,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
         --with-sysroot=$PREFIX \
         --target=$ARCH \
         --host=$ARCH \
+        --with-arch=pentium4 \
         --enable-static \
         --disable-shared \
         --with-pic \
@@ -226,7 +228,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
         --with-mpc-lib=/deps/lib \
         --with-mpfr-include=/deps/include \
         --with-mpfr-lib=/deps/lib \
-        --enable-languages=c,c++ \
+        --enable-languages=c,c++,fortran \
         --enable-libgomp \
         --enable-threads=posix \
         --enable-version-specific-runtime-libs \
@@ -244,9 +246,9 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
  && make install \
  && rm -rf $PREFIX/$ARCH/bin/ $PREFIX/bin/$ARCH-* \
         $PREFIX/bin/ld.bfd.exe $PREFIX/bin/c++.exe $PREFIX/bin/lto-dump.exe \
- && $ARCH-gcc -DEXE=g++.exe -DCMD=c++ \
-        -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c++.exe \
-        $PREFIX/src/alias.c -lkernel32
+ && $ARCH-gcc -DEXE=g++.exe -DCMD=c++ -Os -ffreestanding \
+        -s -nostdlib -Wl,--file-alignment,8,--section-alignment,8 \
+        -o $PREFIX/bin/c++.exe $PREFIX/src/alias.c -lkernel32
 
 WORKDIR /winpthreads
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
@@ -261,19 +263,19 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-libraries/winpthreads/configure \
  && make install
 
 # Create various tool aliases
-RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc \
-        -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/cc.exe \
-        $PREFIX/src/alias.c -lkernel32 \
- && $ARCH-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" \
-        -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/c99.exe \
-        $PREFIX/src/alias.c -lkernel32 \
+RUN $ARCH-gcc -DEXE=gcc.exe -DCMD=cc -Os -ffreestanding \
+        -s -nostdlib -Wl,--file-alignment,8,--section-alignment,8 \
+        -o $PREFIX/bin/cc.exe $PREFIX/src/alias.c -lkernel32 \
+ && $ARCH-gcc -DEXE=gcc.exe -DCMD="cc -std=c99" -Os -ffreestanding \
+        -s -nostdlib -Wl,--file-alignment,8,--section-alignment,8 \
+        -o $PREFIX/bin/c99.exe $PREFIX/src/alias.c -lkernel32 \
  && printf '%s\n' addr2line ar as c++filt cpp dlltool dllwrap elfedit g++ \
       gcc gcc-ar gcc-nm gcc-ranlib gcov gcov-dump gcov-tool ld nm objcopy \
-      objdump ranlib readelf size strings strip windmc windres \
+      objdump ranlib readelf size strings strip windmc windres gfortran \
     | xargs -I{} -P$(nproc) \
-          $ARCH-gcc -DEXE={}.exe -DCMD=$ARCH-{} \
-            -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/$ARCH-{}.exe \
-            $PREFIX/src/alias.c -lkernel32
+          $ARCH-gcc -DEXE={}.exe -DCMD=$ARCH-{} -Os -ffreestanding \
+            -s -nostdlib -Wl,--file-alignment,8,--section-alignment,8 \
+            -o $PREFIX/bin/$ARCH-{}.exe $PREFIX/src/alias.c -lkernel32
 
 # Build some extra development tools
 
@@ -302,9 +304,9 @@ RUN /make-$MAKE_VERSION/configure \
         LDFLAGS="-s" \
  && make -j$(nproc) \
  && cp make.exe $PREFIX/bin/ \
- && $ARCH-gcc -DEXE=make.exe -DCMD=make \
-        -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/mingw32-make.exe \
-        $PREFIX/src/alias.c -lkernel32
+ && $ARCH-gcc -DEXE=make.exe -DCMD=make -Os -ffreestanding \
+        -s -nostdlib -Wl,--file-alignment,8,--section-alignment,8 \
+        -o $PREFIX/bin/mingw32-make.exe $PREFIX/src/alias.c -lkernel32
 
 WORKDIR /busybox-w32
 COPY src/busybox-*.patch $PREFIX/src/
@@ -337,9 +339,9 @@ RUN printf '%s\n' arch ash awk base32 base64 basename bash bc bunzip2 bzcat \
       unlink unlzma unlzop unxz unzip uptime usleep uudecode uuencode watch \
       wc wget which whoami whois xargs xz xzcat yes zcat \
     | xargs -I{} -P$(nproc) \
-          $ARCH-gcc -DEXE=busybox.exe -DCMD={} \
-            -s -Os -nostdlib -ffreestanding -o $PREFIX/bin/{}.exe \
-            $PREFIX/src/alias.c -lkernel32
+          $ARCH-gcc -DEXE=busybox.exe -DCMD={} -Os -ffreestanding \
+            -s -nostdlib -Wl,--file-alignment,8,--section-alignment,8 \
+            -o $PREFIX/bin/{}.exe $PREFIX/src/alias.c -lkernel32
 
 # TODO: Either somehow use $VIM_VERSION or normalize the workdir
 WORKDIR /vim82/src
