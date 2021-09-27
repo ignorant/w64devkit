@@ -6,7 +6,7 @@ ARG BINUTILS_VERSION=2.37
 ARG BUSYBOX_VERSION=FRP-4621-gf3c5e8bc3
 ARG CTAGS_VERSION=20200824
 ARG GCC_VERSION=11.2.0
-ARG GDB_VERSION=10.2
+ARG GDB_VERSION=11.1
 ARG GMP_VERSION=6.2.1
 ARG MAKE_VERSION=4.2
 ARG MINGW_VERSION=10.0.0
@@ -294,6 +294,7 @@ RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-tools/gendef/configure \
 WORKDIR /gdb
 RUN /gdb-$GDB_VERSION/configure \
         --host=$ARCH \
+        --with-libgmp-prefix=/deps \
         CFLAGS="-Os -D_WIN32_WINNT=0x502" \
         CXXFLAGS="-Os" \
         LDFLAGS="-s" \
