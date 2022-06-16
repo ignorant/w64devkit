@@ -15,6 +15,7 @@ ARG MPC_VERSION=1.2.1
 ARG MPFR_VERSION=4.1.0
 ARG NASM_VERSION=2.15.05
 ARG VIM_VERSION=8.2
+ARG LIBICONV_VERSION=1.17
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
   build-essential curl libgmp-dev libmpc-dev libmpfr-dev m4 zip
@@ -34,7 +35,8 @@ RUN curl --insecure --location --remote-name-all \
     http://ftp.vim.org/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
     https://www.nasm.us/pub/nasm/releasebuilds/$NASM_VERSION/nasm-$NASM_VERSION.tar.xz \
     http://deb.debian.org/debian/pool/main/u/universal-ctags/universal-ctags_0+git$CTAGS_VERSION.orig.tar.gz \
-    https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2
+    https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
+    https://ftp.gnu.org/pub/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz
 COPY src/SHA256SUMS $PREFIX/src/
 RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf binutils-$BINUTILS_VERSION.tar.xz \
@@ -49,7 +51,8 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xzf make-$MAKE_VERSION.tar.gz \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
- && tar xjf vim-$VIM_VERSION.tar.bz2
+ && tar xjf vim-$VIM_VERSION.tar.bz2 \
+ && tar xzf libiconv-$LIBICONV_VERSION.tar.gz
 COPY src/w64devkit.c src/w64devkit.ico src/alias.c $PREFIX/src/
 
 ARG ARCH=x86_64-w64-mingw32
@@ -194,6 +197,20 @@ RUN /mpc-$MPC_VERSION/configure \
  && make -j$(nproc) \
  && make install
 
+WORKDIR /libiconv
+RUN /libiconv-$LIBICONV_VERSION/configure \
+        --prefix=/deps \
+        --host=$ARCH \
+        --enable-static \
+        --disable-shared \
+        --disable-nls \
+        --with-pic \
+        --enable-dependency-tracking \
+        CFLAGS="-Os" \
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
+ 
 WORKDIR /mingw-headers
 RUN /mingw-w64-v$MINGW_VERSION/mingw-w64-headers/configure \
         --prefix=$PREFIX/$ARCH \
@@ -242,6 +259,7 @@ RUN sed -i 's#=/mingw/include#=/include#' /gcc-$GCC_VERSION/gcc/config.gcc \
         --with-mpc-lib=/deps/lib \
         --with-mpfr-include=/deps/include \
         --with-mpfr-lib=/deps/lib \
+        --with-libiconv-prefix=/deps \
         --enable-languages=c,c++ \
         --enable-libgomp \
         --enable-threads=posix \
