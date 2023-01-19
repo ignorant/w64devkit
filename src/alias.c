@@ -2,18 +2,19 @@
  *
  * Unlike batch script aliases, this program will not produce an annoying
  * and useless "Terminate batch job (Y/N)" prompt. When compiling, define
- * EXE as the target executable, and define CMD as the argv[0] replacement,
- * including additional arguments. Example:
+ * EXE as the target executable (relative or absolute path), and define CMD
+ * as the argv[0] replacement, including additional arguments. Example:
  *
  *   $ gcc -DEXE="target.exe" -DCMD="argv0 argv1" \
- *         -Os -ffreestanding -fno-ident -fno-asynchronous-unwind-tables \
- *         -s -nostdlib -Wl,--file-alignment,16,--section-alignment,16 \
+ *         -Os -fno-asynchronous-unwind-tables \
+ *         -Wl,--gc-sections -s -nostdlib \
  *         -o alias.exe alias.c -lkernel32
  *
- * Program is compiled freestanding in order to be as small as possible.
+ * This program is compiled CRT-free in order to be as small as possible.
  *
  * This is free and unencumbered software released into the public domain.
  */
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
 #define FATAL "fatal: w64devkit alias failed\n"
@@ -75,14 +76,20 @@ findfile(WCHAR *s)
     }
 }
 
-int WINAPI
+int
 mainCRTStartup(void)
 {
     /* Replace alias module with adjacent target. */
     WCHAR exe[MAX_PATH + COUNTOF(LEXE)];
-    GetModuleFileNameW(0, exe, MAX_PATH);
-    WCHAR *file = findfile(exe);
-    xmemcpy(file, LEXE, sizeof(LEXE));
+    if (LEXE[1] != ':') {
+        /* EXE looks like a relative path */
+        GetModuleFileNameW(0, exe, MAX_PATH);
+        WCHAR *file = findfile(exe);
+        xmemcpy(file, LEXE, sizeof(LEXE));
+    } else {
+        /* EXE looks like an absolute path */
+        xmemcpy(exe, LEXE, sizeof(LEXE));
+    }
 
     /* Produce a new command line string with new argv[0]. */
     WCHAR *args = findargs(GetCommandLineW());

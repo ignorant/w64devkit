@@ -13,6 +13,7 @@ Included tools:
 * [Vim][vim] : powerful text editor
 * [Universal Ctags][ctags] : source navigation
 * [NASM][nasm] : x86 assembler
+* [Cppcheck][cppcheck] : static code analysis
 
 The toolchain includes pthreads, C++11 threads, and OpenMP. All included
 runtime components are static. **Docker/Podman is not required to use the
@@ -68,8 +69,8 @@ Then to start an interactive unix shell:
 The language runtimes in w64devkit are optimized for size, so it produces
 particularly small binaries when programs are also optimized for size
 (`-Os`) during compilation. If your program only uses the `printf` family
-of functions with MSVC-compatable directivies (i.e. limited to C89), and
-you want even smaller binaries, you can avoid embdedding the Mingw-w64's
+of functions with MSVC-compatible directives (i.e. limited to C89), and
+you want even smaller binaries, you can avoid embedding the Mingw-w64's
 improved implementation by setting `__USE_MINGW_ANSI_STDIO` to 0 before
 including any headers.
 
@@ -120,19 +121,45 @@ w64devkit's capabilities. In rough order of importance:
   instructions, when either studying compiler output with `objdump`, or
   writing assembly with `nasm` or `as`.
 
+## Cppcheck tips
+
+Use `--library=windows` for programs calling the Win32 API directly, which
+adds additional checks. In general, the following configuration is a good
+default for programs developed using w64devkit:
+
+    $ cppcheck --quiet -j$(nproc) --library=windows \
+               --suppress=uninitvar --enable=portability,performance .
+
+A "strict" check that is more thorough, but more false positives:
+
+    $ cppcheck --quiet -j$(nproc) --library=windows \
+          --enable=portability,performance,style \
+          --suppress=uninitvar --suppress=unusedStructMember \
+          --suppress=constVariable --suppress=shadowVariable \
+          --suppress=variableScope --suppress=constParameter \
+          --suppress=shadowArgument --suppress=knownConditionTrueFalse .
+
 ## Notes
 
-Since the development kit is intended to be flexible, light, and
-portable — i.e. run from anywhere, in place, and no installation is
-necessary — the binaries are all optimized for size, not speed.
+`$HOME` can be set through the adjacent `w64devkit.ini` configuration, and
+may even be relative to the `w64devkit/` directory. This is useful for
+encapsulating the entire development environment, with home directory, on
+removable, even read-only, media. Use a `.profile` in the home directory
+to configure the environment further.
 
 I'd love to include Git, but unfortunately Git's build system doesn't
 quite support cross-compilation. A decent alternative would be
 [Quilt][quilt], but it's written in Bash and Perl.
 
-What about sanitizer support? That would be fantastic, but unfortunately
-libsanitizer [has not yet been ported from MSVC to Mingw-w64][san]
-([also][san2]).
+Neither Address Sanitizer (ASan) nor Thread Sanitizer (TSan) [has been
+ported to Mingw-w64][san] ([also][san2]), but Undefined Behavior Sanitizer
+(UBSan) works perfectly under GDB. With both `-fsanitize=undefined` and
+`-fsanitize-undefined-trap-on-error`, GDB will [break precisely][break] on
+undefined behavior, and it does not require linking with libsanitizer.
+
+The kit includes a unique [`debugbreak` command][debugbreak]. It causes
+all debugee processes to break in the debugger, like using Windows' F12
+debugger hotkey. This is especially useful for console subsystem programs.
 
 Since the build environment is so stable and predicable, it would be
 great for the .zip to be reproducible, i.e. builds by different people
@@ -155,8 +182,11 @@ binaries.
 
 
 [bb]: https://frippery.org/busybox/
+[break]: https://nullprogram.com/blog/2022/06/26/
 [bs]: https://www.rdegges.com/2016/i-dont-give-a-shit-about-licensing/
+[cppcheck]: https://cppcheck.sourceforge.io/
 [ctags]: https://github.com/universal-ctags/ctags
+[debugbreak]: https://nullprogram.com/blog/2022/07/31/
 [doc-bb]: https://busybox.net/downloads/BusyBox.txt
 [doc-cpp]: https://en.cppreference.com/w/Cppreference:Archives
 [doc-gcc]: https://gcc.gnu.org/onlinedocs/
