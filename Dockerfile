@@ -1,21 +1,22 @@
 FROM debian:bullseye-slim
 
-ARG VERSION=1.17.0
+ARG VERSION=1.18.0
 ARG PREFIX=/w64devkit
 ARG BINUTILS_VERSION=2.39
-ARG BUSYBOX_VERSION=FRP-4716-g31467ddfc
-ARG CTAGS_VERSION=20200824
+ARG BUSYBOX_VERSION=FRP-4882-g6e0a6b7e5
+ARG CTAGS_VERSION=6.0.0
 ARG EXPAT_VERSION=2.5.0
 ARG GCC_VERSION=12.2.0
-ARG GDB_VERSION=11.2
+ARG GDB_VERSION=13.1
 ARG GMP_VERSION=6.2.1
+ARG LIBICONV_VERSION=1.17
 ARG MAKE_VERSION=4.4
 ARG MINGW_VERSION=10.0.0
 ARG MPC_VERSION=1.2.1
 ARG MPFR_VERSION=4.1.0
 ARG NASM_VERSION=2.15.05
 ARG PDCURSES_VERSION=3.9
-ARG CPPCHECK_VERSION=2.8
+ARG CPPCHECK_VERSION=2.10
 ARG VIM_VERSION=9.0
 ARG LIBICONV_VERSION=1.17
 
@@ -33,10 +34,11 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://ftp.gnu.org/gnu/mpc/mpc-$MPC_VERSION.tar.gz \
     https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_VERSION.tar.xz \
     https://ftp.gnu.org/gnu/make/make-$MAKE_VERSION.tar.gz \
+    https://ftp.gnu.org/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz \
     https://frippery.org/files/busybox/busybox-w32-$BUSYBOX_VERSION.tgz \
     http://ftp.vim.org/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
     https://www.nasm.us/pub/nasm/releasebuilds/$NASM_VERSION/nasm-$NASM_VERSION.tar.xz \
-    http://deb.debian.org/debian/pool/main/u/universal-ctags/universal-ctags_0+git$CTAGS_VERSION.orig.tar.gz \
+    https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
     https://ftp.gnu.org/pub/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
@@ -45,10 +47,11 @@ COPY src/SHA256SUMS $PREFIX/src/
 RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf binutils-$BINUTILS_VERSION.tar.xz \
  && tar xzf busybox-w32-$BUSYBOX_VERSION.tgz \
- && tar xzf universal-ctags_0+git$CTAGS_VERSION.orig.tar.gz \
+ && tar xzf ctags-$CTAGS_VERSION.tar.gz \
  && tar xJf gcc-$GCC_VERSION.tar.xz \
  && tar xJf gdb-$GDB_VERSION.tar.xz \
  && tar xJf expat-$EXPAT_VERSION.tar.xz \
+ && tar xzf libiconv-$LIBICONV_VERSION.tar.gz \
  && tar xJf gmp-$GMP_VERSION.tar.xz \
  && tar xzf mpc-$MPC_VERSION.tar.gz \
  && tar xJf mpfr-$MPFR_VERSION.tar.xz \
@@ -59,7 +62,8 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xjf vim-$VIM_VERSION.tar.bz2 \
  && tar xzf libiconv-$LIBICONV_VERSION.tar.gz \
  && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz
-COPY src/w64devkit.c src/w64devkit.ico src/alias.c src/debugbreak.c \
+COPY src/w64devkit.c src/w64devkit.ico \
+     src/alias.c src/debugbreak.c src/pkg-config.c \
      $PREFIX/src/
 
 ARG ARCH=x86_64-w64-mingw32
@@ -94,9 +98,7 @@ WORKDIR /bootstrap
 RUN ln -s $ARCH mingw
 
 WORKDIR /x-gcc
-COPY src/gcc-*.patch $PREFIX/src/
-RUN cat $PREFIX/src/gcc-*.patch | patch -d/gcc-$GCC_VERSION -p1 \
- && /gcc-$GCC_VERSION/configure \
+RUN /gcc-$GCC_VERSION/configure \
         --prefix=/bootstrap \
         --with-sysroot=/bootstrap \
         --target=$ARCH \
@@ -342,18 +344,32 @@ RUN make -j$(nproc) -C wincon \
  && cp wincon/pdcurses.a /deps/lib/libcurses.a \
  && cp curses.h /deps/include
 
+WORKDIR /libiconv
+RUN /libiconv-$LIBICONV_VERSION/configure \
+        --prefix=/deps \
+        --host=$ARCH \
+        --disable-nls \
+        --disable-shared \
+        CFLAGS="-Os" \
+        LDFLAGS="-s" \
+ && make -j$(nproc) \
+ && make install
+
 WORKDIR /gdb
-RUN sed -i 's/quiet = 0/quiet = 1/' /gdb-$GDB_VERSION/gdb/main.c \
+COPY src/gdb-*.patch $PREFIX/src/
+RUN cat $PREFIX/src/gdb-*.patch | patch -d/gdb-$GDB_VERSION -p1 \
+ && sed -i 's/quiet = 0/quiet = 1/' /gdb-$GDB_VERSION/gdb/main.c \
  && /gdb-$GDB_VERSION/configure \
         --host=$ARCH \
         --with-libexpat-prefix=/deps \
         --with-libgmp-prefix=/deps \
+        --with-libiconv-prefix=/deps \
         --enable-tui \
-        CFLAGS="-Os -D_WIN32_WINNT=0x502 -DPDC_WIDE" \
+        CFLAGS="-Os -DPDC_WIDE" \
         CXXFLAGS="-Os -DPDC_WIDE" \
         LDFLAGS="-s -L/deps/lib" \
  && make MAKEINFO=true -j$(nproc) \
- && cp gdb/gdb.exe $PREFIX/bin/
+ && cp gdb/.libs/gdb.exe $PREFIX/bin/
 
 WORKDIR /make
 RUN /make-$MAKE_VERSION/configure \
@@ -378,6 +394,8 @@ RUN cat $PREFIX/src/busybox-*.patch | patch -p1 \
  && sed -ri 's/^(CONFIG_FTP\w*)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_LINK)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_MAN)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_MAKE)=y/\1=n/' .config \
+ && sed -ri 's/^(CONFIG_PDPMAKE)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_RPM\w*)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_STRINGS)=y/\1=n/' .config \
  && sed -ri 's/^(CONFIG_TEST2)=y/\1=n/' .config \
@@ -439,7 +457,7 @@ RUN ./configure \
  && make -j$(nproc) \
  && cp nasm.exe ndisasm.exe $PREFIX/bin
 
-WORKDIR /ctags-master
+WORKDIR /ctags-$CTAGS_VERSION
 RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
  && make -j$(nproc) -f mk_mingw.mak CC=gcc packcc.exe \
  && make -j$(nproc) -f mk_mingw.mak \
@@ -448,8 +466,9 @@ RUN sed -i /RT_MANIFEST/d win32/ctags.rc \
  && cp ctags.exe $PREFIX/bin/
 
 WORKDIR /cppcheck-$CPPCHECK_VERSION
-COPY src/cppcheck.mak $PREFIX/src/
-RUN make -f $PREFIX/src/cppcheck.mak -j$(nproc) CXX=$ARCH-g++ \
+COPY src/cppcheck.mak src/cppcheck-*.patch $PREFIX/src/
+RUN cat $PREFIX/src/cppcheck-*.patch | patch -p1 \
+ && make -f $PREFIX/src/cppcheck.mak -j$(nproc) CXX=$ARCH-g++ \
  && mkdir $PREFIX/share/cppcheck/ \
  && cp -r cppcheck.exe cfg/ $PREFIX/share/cppcheck \
  && $ARCH-gcc -DEXE=../share/cppcheck/cppcheck.exe -DCMD=cppcheck \
@@ -476,6 +495,15 @@ RUN printf "id ICON \"$PREFIX/src/w64devkit.ico\"" >w64devkit.rc \
         -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/debugbreak.exe $PREFIX/src/debugbreak.c \
         -lkernel32 \
+ && $ARCH-gcc \
+        -Os -fwhole-program -fno-asynchronous-unwind-tables \
+        -Wl,--gc-sections -s -nostdlib -DPKG_CONFIG_PREFIX="\"/$ARCH\"" \
+        -o $PREFIX/bin/pkg-config.exe $PREFIX/src/pkg-config.c \
+        -lkernel32 \
+ && $ARCH-gcc -DEXE=pkg-config.exe -DCMD=pkg-config \
+        -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
+        -o $PREFIX/bin/$ARCH-pkg-config.exe $PREFIX/src/alias.c -lkernel32 \
+ && mkdir -p $PREFIX/$ARCH/lib/pkgconfig \
  && cp /mingw-w64-v$MINGW_VERSION/COPYING.MinGW-w64-runtime/COPYING.MinGW-w64-runtime.txt \
         $PREFIX/ \
  && printf "\n===========\nwinpthreads\n===========\n\n" \

@@ -121,6 +121,28 @@ w64devkit's capabilities. In rough order of importance:
   instructions, when either studying compiler output with `objdump`, or
   writing assembly with `nasm` or `as`.
 
+## Library installation
+
+Except for the standard libraries and Win32 import libraries, w64devkit
+does not include libraries, but you can install additional libraries such
+that the toolchain can find them naturally. There are three options:
+
+1. Install it under the sysroot at `w64devkit/$ARCH/`. The easiest option,
+   but will require re-installation after upgrading w64devkit. If it
+   defines `.pc` files, the `pkg-config` command will automatically find
+   and use them.
+
+2. Append its installation directory to your `CPATH` and `LIBRARY_PATH`
+   environment variables. Use `;` to delimit directories. You would likely
+   do this in your `.profile`.
+
+3. If it exists, append its `pkgconfig` directory to the `PKG_CONFIG_PATH`
+   environment variable, then use the `pkg-config` command as usual. Use
+   `;` to delimit directories
+
+Both (1) and (3) are designed to work correctly even if w64devkit or the
+libraries have paths containing spaces.
+
 ## Cppcheck tips
 
 Use `--library=windows` for programs calling the Win32 API directly, which
@@ -197,7 +219,7 @@ binaries.
 [doc-make]: https://www.gnu.org/software/make/manual/
 [doc-nasm]: https://www.nasm.us/docs.php
 [doc-std]: https://stackoverflow.com/a/83763
-[doc-win32]: http://laurencejackson.com/win32/
+[doc-win32]: https://web.archive.org/web/20220922051031/http://www.laurencejackson.com/win32/
 [gdb]: https://www.gnu.org/software/gdb/
 [go]: https://nullprogram.com/blog/2021/06/29/
 [gpl]: https://www.gnu.org/licenses/gcc-exception-3.1.en.html
