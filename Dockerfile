@@ -18,7 +18,6 @@ ARG NASM_VERSION=2.15.05
 ARG PDCURSES_VERSION=3.9
 ARG CPPCHECK_VERSION=2.10
 ARG VIM_VERSION=9.0
-ARG LIBICONV_VERSION=1.17
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
   build-essential curl libgmp-dev libmpc-dev libmpfr-dev m4 zip
@@ -40,7 +39,6 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://www.nasm.us/pub/nasm/releasebuilds/$NASM_VERSION/nasm-$NASM_VERSION.tar.xz \
     https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
-    https://ftp.gnu.org/pub/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
     https://github.com/danmar/cppcheck/archive/$CPPCHECK_VERSION.tar.gz
 COPY src/SHA256SUMS $PREFIX/src/
@@ -60,7 +58,6 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xzf PDCurses-$PDCURSES_VERSION.tar.gz \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2 \
- && tar xzf libiconv-$LIBICONV_VERSION.tar.gz \
  && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz
 COPY src/w64devkit.c src/w64devkit.ico \
      src/alias.c src/debugbreak.c src/pkg-config.c \
@@ -213,11 +210,8 @@ WORKDIR /libiconv
 RUN /libiconv-$LIBICONV_VERSION/configure \
         --prefix=/deps \
         --host=$ARCH \
-        --enable-static \
-        --disable-shared \
         --disable-nls \
-        --with-pic \
-        --enable-dependency-tracking \
+        --disable-shared \
         CFLAGS="-Os" \
         LDFLAGS="-s" \
  && make -j$(nproc) \
@@ -343,17 +337,6 @@ RUN make -j$(nproc) -C wincon \
         CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-I.. -Os -DPDC_WIDE" pdcurses.a \
  && cp wincon/pdcurses.a /deps/lib/libcurses.a \
  && cp curses.h /deps/include
-
-WORKDIR /libiconv
-RUN /libiconv-$LIBICONV_VERSION/configure \
-        --prefix=/deps \
-        --host=$ARCH \
-        --disable-nls \
-        --disable-shared \
-        CFLAGS="-Os" \
-        LDFLAGS="-s" \
- && make -j$(nproc) \
- && make install
 
 WORKDIR /gdb
 COPY src/gdb-*.patch $PREFIX/src/
